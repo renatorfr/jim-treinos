@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="theme-color" content="#131518" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <title>Jim Treinos • Renato Freire</title>
+  <link rel="manifest" href="./manifest.json" />
+  <link rel="icon" type="image/svg+xml" href="./icons/icon.svg" />
+  <link rel="apple-touch-icon" href="./icons/icon.svg" />
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <!-- Top Header -->
+    <header class="app-header">
+      <div class="brand-area">
+        <div class="brand-logo">JT</div>
+        <div>
+          <div class="brand-title">Jim Treinos</div>
+          <div class="brand-sub">Renato Freire</div>
+        </div>
+      </div>
+
+      <div class="header-actions">
+        <select id="micro-select" class="micro-select" onchange="changeMicrocycle(this.value)" aria-label="Selecionar Microciclo"></select>
+        <div id="sync-badge" class="sync-badge" onclick="switchTab('settings')" title="Status da Planilha Google">
+          <span class="sync-dot"></span>
+          <span id="sync-status-text">Local</span>
+        </div>
+      </div>
+    </header>
+
+    <!-- Views -->
+    <main>
+      <section id="view-workout" class="view-container active"></section>
+      <section id="view-calendar" class="view-container"></section>
+      <section id="view-progress" class="view-container"></section>
+      <section id="view-settings" class="view-container"></section>
+    </main>
+
+    <!-- Floating Rest Timer Bar -->
+    <div id="timer-bar" class="timer-floating-bar">
+      <div class="timer-info">
+        <div id="timer-countdown" class="timer-countdown">00:00</div>
+        <div id="timer-label" class="timer-label-text">Descanso</div>
+      </div>
+      <div class="timer-quick-btns">
+        <button class="timer-chip" onclick="startRestTimer(10, 'Transição (10s)')">10s</button>
+        <button class="timer-chip" onclick="startRestTimer(60, 'Descanso (60s)')">60s</button>
+        <button class="timer-chip" onclick="addTimerSeconds(15)">+15s</button>
+        <button class="timer-chip" style="color:var(--pastel-rose);" onclick="stopRestTimer()">✕</button>
+      </div>
+    </div>
+
+    <!-- Bottom Navigation -->
+    <nav class="bottom-nav">
+      <div class="bottom-nav-inner">
+        <button class="nav-tab active" data-tab="workout" onclick="switchTab('workout')">
+          <svg viewBox="0 0 24 24"><path d="M6.5 6.5v11M17.5 6.5v11M3 9v6M21 9v6M6.5 12h11" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          <span>Treinar</span>
+        </button>
+        <button class="nav-tab" data-tab="calendar" onclick="switchTab('calendar')">
+          <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+          <span>Sessões</span>
+        </button>
+        <button class="nav-tab" data-tab="progress" onclick="switchTab('progress')">
+          <svg viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          <span>Cargas</span>
+        </button>
+        <button class="nav-tab" data-tab="settings" onclick="switchTab('settings')">
+          <svg viewBox="0 0 24 24"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" stroke-linecap="round"/><circle cx="12" cy="12" r="3"/></svg>
+          <span>Planilha</span>
+        </button>
+      </div>
+    </nav>
+  </div>
+
+  <div id="toast" class="toast"></div>
+
+  <script src="./data.js"></script>
+  <script src="./app.js"></script>
+</body>
+</html>

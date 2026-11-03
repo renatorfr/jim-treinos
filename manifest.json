@@ -1,0 +1,18 @@
+{
+  "name": "Jim Treinos • Renato Freire",
+  "short_name": "Jim Treinos",
+  "description": "Rastreador de treinos, circuitos, cargas e sessões integrado ao Google Sheets",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#131518",
+  "theme_color": "#131518",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "./icons/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
