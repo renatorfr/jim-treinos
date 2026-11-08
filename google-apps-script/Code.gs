@@ -34,9 +34,10 @@ function setupPlanilha() {
     "Grupo_Muscular",
     "Exercicio",
     "Serie",
-    "Carga_Kg",
+    "Carga",
     "Repeticoes",
-    "Timestamp"
+    "Timestamp",
+    "Unidade"
   ]);
   ensureSheet(ss, "Planos", [
     "Microciclo",
@@ -120,7 +121,8 @@ function doGet(e) {
         setNumber: Number(r[8]) || 1,
         weightKg: Number(r[9]) || 0,
         reps: Number(r[10]) || 0,
-        timestamp: Number(r[11]) || 0
+        timestamp: Number(r[11]) || 0,
+        unit: String(r[12] || "")
       });
     }
 
@@ -184,7 +186,8 @@ function doPost(e) {
             l.setNumber,
             l.weightKg,
             l.reps,
-            l.timestamp || Date.now()
+            l.timestamp || Date.now(),
+            l.unit || "lb"
           ]);
           existingLogIds.add(String(l.id));
         }

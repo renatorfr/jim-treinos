@@ -2,6 +2,38 @@
 
 const STORAGE_KEY = "jim_treinos_state_v1";
 
+// Unidades inferidas a partir do histórico da planilha (assumindo menores cargas reais:
+// halteres e anilhas em lb; máquinas de pilha com placas convertidas 18/23/52 em kg)
+const DEFAULT_EXERCISE_UNITS = {
+  "LEG PRESS 45: Agachamento": "lb",
+  "HALTER: Remada Curvada, Unilateral (Serrote)": "lb",
+  "CAIXOTE/STEP: Subida Lateral": "lb",
+  "MÁQ: Cadeira Flexora": "kg",
+  "B.DECLINADO+HALTER: Crucifixo": "lb",
+  "HACK/LEG.MÁQUINA: Panturr, pés paralelos": "lb",
+  "POLIA.ALTA+BARRA: Puxada Aberta, frontal": "kg",
+  "HALTER: Afundo": "lb",
+  "MÁQ: Elevação de Quadril": "lb",
+  "HALTER: Desenvolvimento Arnold": "lb",
+  "BANCO OBLÍQUO: Extensão Lombar": "lb",
+  "HALTER: Bíceps Rosca Direta": "lb",
+  "BANCO INCLIN+HALTER: Supino": "lb",
+  "HALTER: Tríceps Francês": "lb",
+  "MÁQ: Cadeira Extensora": "kg",
+  "HALTER: Stiff": "lb",
+  "MÁQ: Cadeira Abdutora": "kg",
+  "DEGRAU+HALTER: Panturrilha, Unilateral": "lb",
+  "MÁQ: Cadeira Adutora": "kg",
+  "ARTICULADO: Remada, aberta": "lb",
+  "BANCO HORIZ+BARRA: Supino": "lb",
+  "HALTER: Crucifixo Invertido": "lb",
+  "B.HORIZ+HALTER: Crucifixo": "lb"
+};
+
+function inferUnitForExercise(exerciseKey) {
+  return DEFAULT_EXERCISE_UNITS[exerciseKey] || "lb";
+}
+
 const state = {
   microcycles: [],
   activeMicroId: "micro-02",
@@ -9,6 +41,7 @@ const state = {
   activeTab: "workout",
   sessions: [],
   weightLogs: [],
+  exerciseUnits: {}, // keyed by exerciseKey -> "kg" | "lb"
   drafts: {}, // keyed by `${microId}_${workoutId}`
   calendarMonth: new Date().getMonth(),
   calendarYear: new Date().getFullYear(),
@@ -90,16 +123,26 @@ function loadState() {
       state.activeWorkoutId = parsed.activeWorkoutId || "A";
       state.sessions = Array.isArray(parsed.sessions) ? parsed.sessions : [];
       state.weightLogs = Array.isArray(parsed.weightLogs) ? parsed.weightLogs : [];
+      state.exerciseUnits = { ...DEFAULT_EXERCISE_UNITS, ...(parsed.exerciseUnits || {}) };
       state.drafts = parsed.drafts || {};
       state.settings = { ...state.settings, ...(parsed.settings || {}) };
     } catch (e) {
       console.error("Failed to parse saved state", e);
       state.microcycles = window.DEFAULT_DATA.microcycles;
+      state.exerciseUnits = { ...DEFAULT_EXERCISE_UNITS };
     }
   } else {
     state.microcycles = window.DEFAULT_DATA.microcycles;
     state.activeMicroId = window.DEFAULT_DATA.activeMicroId;
+    state.exerciseUnits = { ...DEFAULT_EXERCISE_UNITS };
   }
+
+  // Ensure all historical logs have a unit ("kg" or "lb") inferred if missing
+  state.weightLogs.forEach(l => {
+    if (!l.unit) {
+      l.unit = inferUnitForExercise(l.exerciseKey || l.exerciseName);
+    }
+  });
 }
 
 function saveState() {
@@ -109,6 +152,7 @@ function saveState() {
     activeWorkoutId: state.activeWorkoutId,
     sessions: state.sessions,
     weightLogs: state.weightLogs,
+    exerciseUnits: state.exerciseUnits,
     drafts: state.drafts,
     settings: state.settings
   };
@@ -118,6 +162,19 @@ function saveState() {
 
 function getActiveMicro() {
   return state.microcycles.find(m => m.id === state.activeMicroId) || state.microcycles[0];
+}
+
+// Get current selected unit ("kg" or "lb") for an exercise
+function getExerciseUnit(exerciseKey, exId, draft) {
+  if (draft && draft.unitMap && exId && draft.unitMap[exId]) {
+    return draft.unitMap[exId];
+  }
+  if (state.exerciseUnits && state.exerciseUnits[exerciseKey]) {
+    return state.exerciseUnits[exerciseKey];
+  }
+  const last = getLastLogForExercise(exerciseKey);
+  if (last && last.unit) return last.unit;
+  return inferUnitForExercise(exerciseKey);
 }
 
 // Get last logged weight & reps for an exercise key
@@ -133,11 +190,13 @@ function getOrCreateDraft(micro, workout) {
   const draftKey = `${micro.id}_${workout.id}`;
   if (!state.drafts[draftKey]) {
     const setsMap = {};
+    const unitMap = {};
     const cardioMap = {};
     if (workout.type === "strength" && workout.circuits) {
       workout.circuits.forEach(cir => {
         cir.exercises.forEach(ex => {
           const last = getLastLogForExercise(ex.key);
+          unitMap[ex.id] = (last && last.unit) ? last.unit : getExerciseUnit(ex.key);
           setsMap[ex.id] = [];
           for (let s = 1; s <= cir.sets; s++) {
             setsMap[ex.id].push({
@@ -160,8 +219,11 @@ function getOrCreateDraft(micro, workout) {
       durationMin: workout.type === "cardio" ? 50 : 45,
       notes: "",
       setsMap,
+      unitMap,
       cardioMap
     };
+  } else if (!state.drafts[draftKey].unitMap) {
+    state.drafts[draftKey].unitMap = {};
   }
   return state.drafts[draftKey];
 }
@@ -345,6 +407,8 @@ function renderWorkoutView() {
             const lastLog = getLastLogForExercise(ex.key);
             const sets = draft.setsMap[ex.id] || [];
             const unitLabel = ex.unitLabel || "reps";
+            const exUnit = getExerciseUnit(ex.key, ex.id, draft);
+            const lastUnit = (lastLog && lastLog.unit) ? lastLog.unit : inferUnitForExercise(ex.key);
             return `
               <div class="exercise-block">
                 <div class="exercise-header">
@@ -353,8 +417,16 @@ function renderWorkoutView() {
                     <div class="exercise-name">${ex.name}</div>
                   </div>
                   ${ex.tracksWeight ? `
-                    <div class="last-weight-pill" onclick="applyLastWeightToAll('${ex.id}', '${ex.key}')" title="Aplicar última carga">
-                      ${lastLog ? `Último: <strong>${lastLog.weightKg}kg</strong> × ${lastLog.reps}` : `Sem carga ant.`}
+                    <div class="exercise-header-right">
+                      <div class="unit-toggle" role="group" aria-label="Unidade de peso">
+                        <button type="button" class="unit-toggle-btn ${exUnit === "kg" ? "active" : ""}"
+                          onclick="setExerciseUnit('${ex.id}', '${ex.key}', 'kg')">kg</button>
+                        <button type="button" class="unit-toggle-btn ${exUnit === "lb" ? "active" : ""}"
+                          onclick="setExerciseUnit('${ex.id}', '${ex.key}', 'lb')">lb</button>
+                      </div>
+                      <div class="last-weight-pill" onclick="applyLastWeightToAll('${ex.id}', '${ex.key}')" title="Aplicar última carga">
+                        ${lastLog ? `Último: <strong>${lastLog.weightKg}${lastUnit}</strong> × ${lastLog.reps}` : `Sem carga ant.`}
+                      </div>
                     </div>
                   ` : `
                     <div class="last-weight-pill">Peso corp. / Isom.</div>
@@ -371,7 +443,7 @@ function renderWorkoutView() {
                             <input class="stepper-input" type="number" inputmode="decimal" step="0.5" value="${s.weightKg}"
                               onfocus="selectInputText(this)" onclick="selectInputText(this)"
                               onchange="updateSetInput('${ex.id}', ${sIdx}, 'weightKg', this.value)" />
-                            <span class="stepper-unit">kg</span>
+                            <span class="stepper-unit">${exUnit}</span>
                           </div>
                           <button class="stepper-btn" type="button" onclick="adjustSetValue('${ex.id}', ${sIdx}, 'weightKg', 1)">+</button>
                         </div>
@@ -529,19 +601,36 @@ window.updateSetInput = function(exId, sIdx, field, val) {
   renderWorkoutView();
 };
 
+// Switch unit ("kg" or "lb") for an exercise WITHOUT converting the existing numbers
+window.setExerciseUnit = function(exId, exKey, unit) {
+  if (unit !== "kg" && unit !== "lb") return;
+  const micro = getActiveMicro();
+  const workout = micro.workouts[state.activeWorkoutId];
+  const draft = getOrCreateDraft(micro, workout);
+  if (!draft.unitMap) draft.unitMap = {};
+  draft.unitMap[exId] = unit;
+  state.exerciseUnits[exKey] = unit;
+  saveState();
+  renderWorkoutView();
+};
+
 window.applyLastWeightToAll = function(exId, exKey) {
   const last = getLastLogForExercise(exKey);
   if (!last) return;
   const micro = getActiveMicro();
   const workout = micro.workouts[state.activeWorkoutId];
   const draft = getOrCreateDraft(micro, workout);
+  const unit = last.unit || getExerciseUnit(exKey, exId, draft);
+  if (!draft.unitMap) draft.unitMap = {};
+  draft.unitMap[exId] = unit;
+  state.exerciseUnits[exKey] = unit;
   (draft.setsMap[exId] || []).forEach(s => {
     s.weightKg = last.weightKg;
     s.reps = last.reps;
   });
   saveState();
   renderWorkoutView();
-  showToast(`Carga ${last.weightKg}kg aplicada`);
+  showToast(`Carga ${last.weightKg}${unit} aplicada`);
 };
 
 window.toggleSetDone = function(cirId, exId, exIdx, totalExInCir, sIdx, restBetweenSec, restAfterSec) {
@@ -606,6 +695,8 @@ window.finishWorkoutSession = async function() {
     workout.circuits.forEach(cir => {
       cir.exercises.forEach(ex => {
         const sets = draft.setsMap[ex.id] || [];
+        const exUnit = getExerciseUnit(ex.key, ex.id, draft);
+        state.exerciseUnits[ex.key] = exUnit;
         // Log sets that are marked done, OR if none marked done, log all sets that have weight/reps
         const anyDone = sets.some(s => s.done);
         sets.forEach(s => {
@@ -624,7 +715,8 @@ window.finishWorkoutSession = async function() {
               group: ex.group,
               setNumber: s.setNumber,
               weightKg: Number(s.weightKg) || 0,
-              reps: Number(s.reps) || 0
+              reps: Number(s.reps) || 0,
+              unit: exUnit
             });
           }
         });
@@ -869,11 +961,16 @@ function renderProgressionView() {
     // Group by date (best set of each date)
     const byDateMap = new Map();
     let maxWeight = 0;
+    let maxUnit = getExerciseUnit(ex.key);
     logs.forEach(l => {
-      if (l.weightKg > maxWeight) maxWeight = l.weightKg;
+      const lUnit = l.unit || inferUnitForExercise(ex.key);
+      if (l.weightKg > maxWeight) {
+        maxWeight = l.weightKg;
+        maxUnit = lUnit;
+      }
       const prev = byDateMap.get(l.date);
       if (!prev || l.weightKg > prev.weightKg || (l.weightKg === prev.weightKg && l.reps > prev.reps)) {
-        byDateMap.set(l.date, l);
+        byDateMap.set(l.date, { ...l, unit: lUnit });
       }
     });
     const timeline = Array.from(byDateMap.values()).reverse();
@@ -885,14 +982,14 @@ function renderProgressionView() {
             <span class="group-tag" data-group="${ex.group}">${ex.group}</span>
             <div class="exercise-name">${ex.name}</div>
           </div>
-          ${maxWeight > 0 ? `<span class="eh-pr-badge">Recorde: ${maxWeight} kg</span>` : `<span class="last-weight-pill">Sem registros</span>`}
+          ${maxWeight > 0 ? `<span class="eh-pr-badge">Recorde: ${maxWeight} ${maxUnit}</span>` : `<span class="last-weight-pill">Sem registros</span>`}
         </div>
         ${timeline.length > 0 ? `
           <div class="eh-timeline">
             ${timeline.map(item => `
               <div class="eh-chip">
                 <span class="eh-chip-date">${formatDateBR(item.date)}</span>
-                <span class="eh-chip-val">${item.weightKg > 0 ? `${item.weightKg}kg × ` : ""}${item.reps} reps</span>
+                <span class="eh-chip-val">${item.weightKg > 0 ? `${item.weightKg}${item.unit || maxUnit} × ` : ""}${item.reps} reps</span>
               </div>
             `).join("")}
           </div>
@@ -1045,10 +1142,16 @@ window.syncWithGoogleSheet = async function(silent = false) {
       });
       state.sessions.sort((a, b) => (b.date || "").localeCompare(a.date || "") || (b.timestamp || 0) - (a.timestamp || 0));
 
-      const localLogIds = new Set(state.weightLogs.map(l => l.id));
+      const localLogMap = new Map(state.weightLogs.map(l => [l.id, l]));
       (getData.weightLogs || []).forEach(rl => {
-        if (rl.id && !localLogIds.has(rl.id)) {
-          state.weightLogs.push(rl);
+        if (!rl.id) return;
+        const resolvedUnit = rl.unit || inferUnitForExercise(rl.exerciseKey || rl.exerciseName);
+        if (!localLogMap.has(rl.id)) {
+          state.weightLogs.push({ ...rl, unit: resolvedUnit });
+        } else {
+          const existing = localLogMap.get(rl.id);
+          if (rl.unit) existing.unit = rl.unit;
+          else if (!existing.unit) existing.unit = resolvedUnit;
         }
       });
 
