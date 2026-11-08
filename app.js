@@ -368,7 +368,8 @@ function renderWorkoutView() {
                         <div class="stepper-field">
                           <button class="stepper-btn" type="button" onclick="adjustSetValue('${ex.id}', ${sIdx}, 'weightKg', -1)">−</button>
                           <div class="stepper-input-wrap">
-                            <input class="stepper-input" type="number" step="0.5" value="${s.weightKg}"
+                            <input class="stepper-input" type="number" inputmode="decimal" step="0.5" value="${s.weightKg}"
+                              onfocus="selectInputText(this)" onclick="selectInputText(this)"
                               onchange="updateSetInput('${ex.id}', ${sIdx}, 'weightKg', this.value)" />
                             <span class="stepper-unit">kg</span>
                           </div>
@@ -378,7 +379,8 @@ function renderWorkoutView() {
                       <div class="stepper-field">
                         <button class="stepper-btn" type="button" onclick="adjustSetValue('${ex.id}', ${sIdx}, 'reps', -1)">−</button>
                         <div class="stepper-input-wrap">
-                          <input class="stepper-input" type="number" step="1" value="${s.reps}"
+                          <input class="stepper-input" type="number" inputmode="numeric" step="1" value="${s.reps}"
+                            onfocus="selectInputText(this)" onclick="selectInputText(this)"
                             onchange="updateSetInput('${ex.id}', ${sIdx}, 'reps', this.value)" />
                           <span class="stepper-unit">${unitLabel}</span>
                         </div>
@@ -473,6 +475,18 @@ window.selectWorkout = function(workoutId) {
   renderWorkoutView();
 };
 
+window.selectInputText = function(el) {
+  if (!el) return;
+  try {
+    el.select();
+  } catch (e) {}
+  setTimeout(() => {
+    try {
+      el.select();
+    } catch (e) {}
+  }, 20);
+};
+
 window.adjustSetValue = function(exId, sIdx, field, delta) {
   const micro = getActiveMicro();
   const workout = micro.workouts[state.activeWorkoutId];
@@ -483,11 +497,11 @@ window.adjustSetValue = function(exId, sIdx, field, delta) {
   const current = parseFloat(setObj[field]) || 0;
   setObj[field] = Math.max(0, Number((current + delta).toFixed(1)));
 
-  // Also propagate weight change to subsequent uncompleted sets of the same exercise for convenience
-  if (field === "weightKg") {
+  // Propagate weightKg or reps change to subsequent uncompleted sets of the same exercise
+  if (field === "weightKg" || field === "reps") {
     for (let i = sIdx + 1; i < draft.setsMap[exId].length; i++) {
       if (!draft.setsMap[exId][i].done) {
-        draft.setsMap[exId][i].weightKg = setObj.weightKg;
+        draft.setsMap[exId][i][field] = setObj[field];
       }
     }
   }
@@ -504,10 +518,10 @@ window.updateSetInput = function(exId, sIdx, field, val) {
   if (!setObj) return;
 
   setObj[field] = Math.max(0, parseFloat(val) || 0);
-  if (field === "weightKg") {
+  if (field === "weightKg" || field === "reps") {
     for (let i = sIdx + 1; i < draft.setsMap[exId].length; i++) {
       if (!draft.setsMap[exId][i].done) {
-        draft.setsMap[exId][i].weightKg = setObj.weightKg;
+        draft.setsMap[exId][i][field] = setObj[field];
       }
     }
   }
