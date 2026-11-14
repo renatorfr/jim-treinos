@@ -1090,12 +1090,16 @@ window.toggleSetting = function(key, val) {
 };
 
 // Google Sheets Webhook Sync
+let isSyncing = false;
+
 window.syncWithGoogleSheet = async function(silent = false) {
   if (!state.settings.webhookUrl) {
     if (!silent) showToast("Configure a URL do Google Apps Script primeiro.");
     return;
   }
+  if (isSyncing) return;
 
+  isSyncing = true;
   if (!silent) showToast("Sincronizando com Google Drive...");
 
   try {
@@ -1162,8 +1166,16 @@ window.syncWithGoogleSheet = async function(silent = false) {
   } catch (err) {
     console.error("Sync error:", err);
     if (!silent) showToast("Aviso: Dados salvos no celular (sincronizará quando online).");
+  } finally {
+    isSyncing = false;
   }
 };
+
+function triggerAutoSync(onlyIfPending = false) {
+  if (!state.settings.webhookUrl || !navigator.onLine) return;
+  if (onlyIfPending && !state.sessions.some(s => !s.synced)) return;
+  syncWithGoogleSheet(true);
+}
 
 window.pushPlansToSheet = async function() {
   if (!state.settings.webhookUrl) {
@@ -1264,5 +1276,17 @@ document.addEventListener("DOMContentLoaded", () => {
 
   if ("serviceWorker" in navigator) {
     navigator.serviceWorker.register("./sw.js").catch(() => {});
+  }
+
+  triggerAutoSync(false);
+});
+
+window.addEventListener("online", () => {
+  triggerAutoSync(true);
+});
+
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible") {
+    triggerAutoSync(true);
   }
 });
